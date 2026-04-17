@@ -1,0 +1,861 @@
+# AML Rule Tester — Canonical Attribute Schema
+# =============================================
+# This file is the single source of truth for attribute names used across:
+#   - LLM prompts (rule parser, sequence generator)
+#   - Validation engine (aggregate computation, rule evaluation)
+#
+# All LLMs are instructed to use ONLY the canonical names defined here.
+# Attribute names match actual database column names from the production schema.
+# Where the same column name appears in multiple tables, the conflicting entity
+# is prefixed (e.g. user_origin_country_code, recipient_email_address).
+#
+# types:
+#   numeric     — can be summed, averaged, compared with >, <, >= etc.
+#   categorical — compared with ==, !=, in, not_in
+#   datetime    — ISO 8601 string, used for window filtering
+#   boolean     — true/false (kept for backward compat; new schema uses categorical True/False strings)
+
+# ── Transaction attributes ────────────────────────────────────────────────────
+# Attributes from the transactions table — one record per transfer.
+
+transaction_attributes:
+
+  # ── Identity & status ─────────────────────────────────────────
+  platform:
+    type: categorical
+    description: Product/brand through which the transfer was made (e.g. lion, cheetah)
+    aliases: [brand, product]
+
+  transfer_id:
+    type: categorical
+    description: Unique identifier for the transfer
+    aliases: [transaction_id, txn_id, id]
+
+  customer_id:
+    type: categorical
+    description: Foreign key to users table — the sending customer
+    aliases: [user_id, sender_id, account_id]
+
+  beneficiary_id:
+    type: categorical
+    description: Foreign key to recipients table — the intended recipient
+    aliases: [recipient_id, receiver_id]
+
+  transfer_status:
+    type: categorical
+    description: Current status of the transfer
+    allowed_values: [completed, cancelled, refunded, charged_back, failed]
+    aliases: [transaction_status, status, txn_status]
+
+  # ── Geography ──────────────────────────────────────────────────
+  origin_country_code:
+    type: categorical
+    description: >
+      Country the transfer was sent FROM — use full country name for rule evaluation
+      (e.g. "United Kingdom", "United States"). Database stores ISO 3166-1 alpha-2.
+    aliases: [send_country_code, send_country, from_country, sender_country]
+
+  destination_country_code:
+    type: categorical
+    description: >
+      Country the transfer was sent TO — use full country name for rule evaluation
+      (e.g. "Iran", "North Korea", "Nigeria"). Database stores ISO 3166-1 alpha-2.
+    aliases: [receive_country_code, receive_country, to_country, recipient_country, beneficiary_country, country]
+
+  # ── Currencies ──────────────────────────────────────────────────
+  source_currency:
+    type: categorical
+    description: Currency paid by the sender (ISO 4217, e.g. USD, GBP, EUR)
+    aliases: [send_currency, currency, send_ccy, from_currency]
+
+  target_currency:
+    type: categorical
+    description: Currency received by the beneficiary (ISO 4217)
+    aliases: [receive_currency, receive_ccy, to_currency]
+
+  # ── Methods ──────────────────────────────────────────────────────
+  funding_method:
+    type: categorical
+    description: How the sender funded the transfer
+    allowed_values: [bank_transfer, mobile_wallet, card, cash_agent]
+    aliases: [payin_method, payment_method, pay_in_method]
+
+  funding_method_description:
+    type: categorical
+    description: Human-readable description of the funding method
+    aliases: [funding_description]
+
+  disbursement_method:
+    type: categorical
+    description: How funds were delivered to the recipient (e.g. mobile_wallet, cash_pickup, bank_deposit)
+    aliases: [payout_method, pay_out_method]
+
+  # ── Exchange rates ────────────────────────────────────────────────
+  exchange_rate_payout:
+    type: numeric
+    description: Exchange rate applied at payout
+    aliases: [payout_rate, exchange_rate]
+
+  exchange_rate_to_receiver:
+    type: numeric
+    description: Exchange rate shown to the receiver
+    aliases: [receiver_rate]
+
+  exchange_margin:
+    type: numeric
+    description: Revenue earned from the exchange rate spread
+    aliases: [fx_margin]
+
+  exchange_spread_pct:
+    type: numeric
+    description: Exchange rate spread as a decimal percentage (e.g. 0.0055 = 0.55%)
+    aliases: [spread_pct, fx_spread]
+
+  # ── Amounts ────────────────────────────────────────────────────────
+  source_amount:
+    type: numeric
+    description: Amount sent by the customer in source currency
+    aliases: [send_amount, amount, sent_amount, transaction_amount, transfer_amount]
+
+  transfer_fee:
+    type: numeric
+    description: Fee charged for the transfer in source currency
+    aliases: [fee, transaction_fee]
+
+  voucher_discount:
+    type: numeric
+    description: Discount applied to the fee via voucher
+    aliases: [discount]
+
+  destination_amount:
+    type: numeric
+    description: Amount received by the beneficiary in target currency
+    aliases: [receive_amount, received_amount, payout_amount]
+
+  total_revenue:
+    type: numeric
+    description: Total revenue earned from this transfer (fee + exchange margin)
+    aliases: [revenue]
+
+  total_charged:
+    type: numeric
+    description: Total amount charged to the customer (source_amount + transfer_fee - voucher_discount)
+    aliases: [charged_amount, total_debit]
+
+  # ── Vouchers ───────────────────────────────────────────────────────
+  voucher_code:
+    type: categorical
+    description: Promotional voucher code applied to the transfer
+    aliases: [promo_code]
+
+  voucher_type:
+    type: categorical
+    description: Type of voucher applied (e.g. new_user, seasonal, referral)
+    aliases: [promo_type]
+
+  voucher_code_type:
+    type: categorical
+    description: Category of the voucher code
+    aliases: []
+
+  # ── Device & network ──────────────────────────────────────────────
+  transfer_device_type:
+    type: categorical
+    description: Device used to initiate the transfer (e.g. mobile_app, web, agent)
+    aliases: [device_type]
+
+  sender_device_id:
+    type: categorical
+    description: Device ID of the sender's device
+    aliases: [device_id, device]
+
+  request_ip:
+    type: categorical
+    description: IP address from which the transfer was initiated
+    aliases: [ip_address, ip]
+
+  # ── Reference codes ───────────────────────────────────────────────
+  transfer_reference:
+    type: categorical
+    description: Unique reference code for the transfer
+    aliases: [reference, ref]
+
+  payment_processor:
+    type: categorical
+    description: Payment processor used to collect funds
+    aliases: [processor]
+
+  processor_reference:
+    type: categorical
+    description: Reference ID from the payment processor
+    aliases: []
+
+  merchant_ref_id:
+    type: categorical
+    description: Merchant reference ID for the transaction
+    aliases: []
+
+  api_transfer_reference:
+    type: categorical
+    description: API-level reference for the transfer
+    aliases: []
+
+  # ── Sender bank details ───────────────────────────────────────────
+  sender_account_number:
+    type: categorical
+    description: Sender's bank account number used to fund the transfer
+    aliases: [sender_account]
+
+  sender_sort_code:
+    type: categorical
+    description: Sender's bank sort code
+    aliases: [sort_code]
+
+  sending_bank:
+    type: categorical
+    description: Name of the sender's bank
+    aliases: [sender_bank]
+
+  # ── Card details ──────────────────────────────────────────────────
+  card_issuing_bank:
+    type: categorical
+    description: Bank that issued the payment card used (if card-funded)
+    aliases: [issuing_bank]
+
+  card_issuing_country:
+    type: categorical
+    description: Country where the payment card was issued
+    aliases: [card_country]
+
+  payment_card_type:
+    type: categorical
+    description: Type of payment card used (e.g. debit, credit)
+    aliases: [card_type]
+
+  card_network:
+    type: categorical
+    description: Card network of the payment card (e.g. visa, mastercard, amex)
+    aliases: [card_scheme]
+
+  masked_card_number:
+    type: categorical
+    description: Masked card number showing last 4 digits (e.g. ****1234)
+    aliases: [card_number]
+
+  chargeback_liability:
+    type: categorical
+    description: Party liable for a chargeback on this transfer
+    aliases: []
+
+  # ── Timestamps ────────────────────────────────────────────────────
+  initiated_at:
+    type: datetime
+    description: Timestamp when the transfer was initiated by the customer (ISO 8601)
+    aliases: [created_at, date, transaction_date, timestamp, txn_date]
+
+  funds_collected_at:
+    type: datetime
+    description: Timestamp when funds were collected from the sender
+    aliases: []
+
+  funds_disbursed_at:
+    type: datetime
+    description: Timestamp when funds were disbursed to the recipient
+    aliases: []
+
+  disbursement_accepted_at:
+    type: datetime
+    description: Timestamp when the disbursement was accepted by the recipient network
+    aliases: []
+
+  payment_authorised_at:
+    type: datetime
+    description: Timestamp when payment was authorised
+    aliases: []
+
+  last_synced_at:
+    type: datetime
+    description: Timestamp when the record was last synced (operational)
+    aliases: []
+
+  # ── Payment authorisation ─────────────────────────────────────────
+  payment_authorised:
+    type: categorical
+    description: Whether the payment was authorised (True/False)
+    allowed_values: [True, False]
+    aliases: [authorised, authorized]
+
+  # ── Transfer purpose ──────────────────────────────────────────────
+  transfer_purpose:
+    type: categorical
+    description: Stated purpose of the transfer (e.g. family_support, education, gift, self_transfer, medical)
+    aliases: [send_reason, transfer_reason, reason, purpose]
+
+  # ── Cancellation ─────────────────────────────────────────────────
+  cancellation_timestamp:
+    type: datetime
+    description: Timestamp when the transfer was cancelled (if applicable)
+    aliases: []
+
+  cancellation_requested_at:
+    type: datetime
+    description: Timestamp when cancellation was requested
+    aliases: []
+
+  automated_cancellation_at:
+    type: datetime
+    description: Timestamp when an automated cancellation was triggered
+    aliases: []
+
+  customer_cancellation_at:
+    type: datetime
+    description: Timestamp when the customer requested cancellation
+    aliases: []
+
+  cancellation_type:
+    type: categorical
+    description: Type/category of cancellation
+    aliases: []
+
+  cancellation_type_description:
+    type: categorical
+    description: Human-readable description of the cancellation type
+    aliases: []
+
+  cancellation_reason:
+    type: categorical
+    description: Reason code for the cancellation
+    aliases: []
+
+  cancellation_reason_description:
+    type: categorical
+    description: Human-readable description of the cancellation reason
+    aliases: []
+
+  # ── Refund ────────────────────────────────────────────────────────
+  refund_processed_at:
+    type: datetime
+    description: Timestamp when the refund was processed
+    aliases: []
+
+  refund_category:
+    type: categorical
+    description: Category/reason for the refund
+    aliases: []
+
+  # ── Sanctions & fraud ─────────────────────────────────────────────
+  initial_sanction_match_at:
+    type: datetime
+    description: Timestamp when an initial sanctions screening match was detected
+    aliases: [sanction_match_at]
+
+  void_processed_at:
+    type: datetime
+    description: Timestamp when the transfer was voided
+    aliases: []
+
+  fraud_check_result:
+    type: categorical
+    description: Result of automated fraud check (True = fraud detected, False = clean)
+    allowed_values: [True, False]
+    aliases: [is_fraud, fraud_flag, fraudulent]
+
+  # ── Dispute & chargeback ──────────────────────────────────────────
+  dispute_reason_code:
+    type: categorical
+    description: Reason code for a payment dispute or chargeback
+    aliases: []
+
+  chargeback_filed_at:
+    type: datetime
+    description: Timestamp when a chargeback was filed
+    aliases: []
+
+  dispute_reason:
+    type: categorical
+    description: Human-readable reason for a payment dispute
+    aliases: []
+
+  # ── Direction (no direct DB column — kept for rule clarity) ────────
+  payment_direction:
+    type: categorical
+    description: Direction of the transfer (outbound or inbound)
+    aliases: [direction, txn_direction]
+
+
+# ── User attributes ───────────────────────────────────────────────────────────
+# Attributes from the users table — one record per sending customer.
+# Columns that also exist in transactions are prefixed with user_.
+
+user_attributes:
+
+  # ── Identity ──────────────────────────────────────────────────────
+  user_platform:
+    type: categorical
+    description: Product/brand the user is registered on (e.g. lion, cheetah)
+    aliases: []
+
+  user_customer_id:
+    type: categorical
+    description: Unique identifier for the customer in the users table
+    aliases: [sender_user_id]
+
+  referral_source_id:
+    type: categorical
+    description: ID of the referral source that acquired this user
+    aliases: []
+
+  external_identifiers:
+    type: categorical
+    description: Identifiers from external systems linked to this user
+    aliases: []
+
+  phone_verified:
+    type: categorical
+    description: Whether the user's phone number has been verified (True/False)
+    allowed_values: [True, False]
+    aliases: []
+
+  username:
+    type: categorical
+    description: User's display name on the platform
+    aliases: []
+
+  legal_full_name:
+    type: categorical
+    description: User's legal full name as on their ID document
+    aliases: [user_name, sender_name, full_name, name]
+
+  email_address:
+    type: categorical
+    description: User's email address (PII — used for shared-identity detection)
+    aliases: [email, user_email]
+
+  contact_number:
+    type: categorical
+    description: User's phone number including country code (PII — used for shared-identity detection)
+    aliases: [phone, phone_number, mobile, mobile_number, user_phone]
+
+  birthdate:
+    type: datetime
+    description: User's date of birth (ISO 8601, e.g. 1988-02-01)
+    aliases: [date_of_birth, dob, birth_date]
+
+  citizenship_code:
+    type: categorical
+    description: User's citizenship country — use full country name (e.g. "Iranian", "British")
+    aliases: [nationality_code, nationality, user_nationality, user_country]
+
+  sex:
+    type: categorical
+    description: User's sex (male, female, other)
+    allowed_values: [male, female, other]
+    aliases: [gender, user_gender]
+
+  referral_active:
+    type: categorical
+    description: Whether the user's referral is currently active (True/False)
+    allowed_values: [True, False]
+    aliases: []
+
+  registration_device_type:
+    type: categorical
+    description: Device type used to register (e.g. web, mobile_app, agent)
+    aliases: []
+
+  # ── Geography (prefixed: user origin vs transaction origin) ──────
+  user_origin_country_code:
+    type: categorical
+    description: >
+      Country where the user is based — use full country name (e.g. "United States", "United Kingdom").
+      Database stores ISO 3166-1 alpha-2. Distinct from transaction.origin_country_code.
+    aliases: [signup_send_country_code, signup_country, registration_country, user_origin_country]
+
+  default_destination_code:
+    type: categorical
+    description: User's default destination country code (ISO 3166-1 alpha-2)
+    aliases: []
+
+  # ── Address ────────────────────────────────────────────────────────
+  street_address:
+    type: categorical
+    description: User's street address (PII)
+    aliases: [sender_address, address]
+
+  locality:
+    type: categorical
+    description: User's city or locality
+    aliases: [city, user_city]
+
+  postcode:
+    type: categorical
+    description: User's postal code
+    aliases: [zip_code, postal_code]
+
+  state_province:
+    type: categorical
+    description: User's state or province
+    aliases: [state, province]
+
+  # ── Registration & timestamps ───────────────────────────────────────
+  registered_at:
+    type: datetime
+    description: Timestamp when the user registered
+    aliases: [registration_date, signup_at]
+
+  # ── Identity documents ─────────────────────────────────────────────
+  id_document_type:
+    type: categorical
+    description: Type of identity document provided (e.g. passport, driver_license, national_id)
+    aliases: [document_type]
+
+  id_document_number:
+    type: categorical
+    description: Identity document number (PII)
+    aliases: [document_number]
+
+  # ── Employment & financial ──────────────────────────────────────────
+  employer_name:
+    type: categorical
+    description: Name of the user's employer
+    aliases: [employer]
+
+  profession:
+    type: categorical
+    description: User's profession or occupation
+    aliases: [occupation, job, user_occupation]
+
+  bop_purpose_code:
+    type: categorical
+    description: Balance of Payments purpose code for the user's transfers (e.g. P130, P140, P150)
+    aliases: [bop_code]
+
+  marketing_consent:
+    type: categorical
+    description: Whether the user has consented to marketing communications (True/False)
+    allowed_values: [True, False]
+    aliases: []
+
+  # ── Account status ────────────────────────────────────────────────
+  account_suspended:
+    type: categorical
+    description: Whether the user's account is currently suspended (True/False)
+    allowed_values: [True, False]
+    aliases: [is_user_blocked, blocked, account_blocked]
+
+  linked_account_id:
+    type: categorical
+    description: ID of a linked bank account
+    aliases: []
+
+  # ── Verification outcomes ─────────────────────────────────────────
+  identity_verification_result:
+    type: categorical
+    description: Outcome of identity verification (e.g. Accepted, Review, Declined, Error, Pending_Result)
+    aliases: [kyc_result, identity_result]
+
+  document_check_result:
+    type: categorical
+    description: Outcome of document verification check (e.g. clear, consider)
+    aliases: [doc_check]
+
+  verification_score_1:
+    type: categorical
+    description: Score from first verification provider (pass/fail)
+    allowed_values: [pass, fail]
+    aliases: []
+
+  verification_score_2:
+    type: categorical
+    description: Score from second verification provider (pass/fail)
+    allowed_values: [pass, fail]
+    aliases: []
+
+  verification_score_3:
+    type: categorical
+    description: Score from third verification provider (pass/fail)
+    allowed_values: [pass, fail]
+    aliases: []
+
+  verification_score_4:
+    type: categorical
+    description: Score from fourth verification provider (pass/fail)
+    allowed_values: [pass, fail]
+    aliases: []
+
+  credit_check_result:
+    type: categorical
+    description: Outcome of credit check (pass/fail)
+    allowed_values: [pass, fail]
+    aliases: []
+
+  # ── Transfer history ───────────────────────────────────────────────
+  initial_transfer_at:
+    type: datetime
+    description: Timestamp of user's first transfer attempt
+    aliases: [first_transfer_at]
+
+  first_completed_transfer_at:
+    type: datetime
+    description: Timestamp of user's first successfully completed transfer
+    aliases: []
+
+  latest_transfer_at:
+    type: datetime
+    description: Timestamp of user's most recent transfer attempt
+    aliases: []
+
+  last_completed_transfer_at:
+    type: datetime
+    description: Timestamp of user's most recently completed transfer
+    aliases: []
+
+  total_transfers:
+    type: numeric
+    description: Total number of transfer attempts by the user
+    aliases: []
+
+  completed_transfers:
+    type: numeric
+    description: Number of successfully completed transfers
+    aliases: []
+
+  funded_transfers:
+    type: numeric
+    description: Number of transfers that were funded
+    aliases: []
+
+  # ── Derived country names ─────────────────────────────────────────
+  origin_country_name:
+    type: categorical
+    description: Full name of the user's origin country (e.g. "United States")
+    aliases: []
+
+  destination_country_name:
+    type: categorical
+    description: Full name of the user's default destination country (e.g. "Nigeria")
+    aliases: []
+
+
+# ── Recipient attributes ──────────────────────────────────────────────────────
+# Attributes from the recipients table — one record per recipient profile.
+# Columns that also exist in users or transactions are prefixed with recipient_.
+
+recipient_attributes:
+
+  # ── Identity (prefixed) ────────────────────────────────────────────
+  recipient_platform:
+    type: categorical
+    description: Product/brand the recipient profile belongs to
+    aliases: []
+
+  recipient_beneficiary_id:
+    type: categorical
+    description: Unique identifier for the recipient/beneficiary in the recipients table
+    aliases: [recipient_id, beneficiary_id_own]
+
+  recipient_customer_id:
+    type: categorical
+    description: Foreign key to users table — the sender who owns this recipient profile
+    aliases: []
+
+  recipient_external_identifiers:
+    type: categorical
+    description: Identifiers from external systems linked to this recipient
+    aliases: []
+
+  # ── Name ───────────────────────────────────────────────────────────
+  beneficiary_name:
+    type: categorical
+    description: Full name of the recipient
+    aliases: [recipient_name, recipient_full_name, receiver_name]
+
+  # ── Contact (prefixed: same column names as users table) ─────────
+  calling_code:
+    type: categorical
+    description: Country dialing/calling code for the recipient (e.g. 977 for Nepal)
+    aliases: []
+
+  recipient_contact_number:
+    type: categorical
+    description: Recipient's phone number (PII)
+    aliases: [recipient_phone, beneficiary_phone, receiver_phone]
+
+  recipient_email_address:
+    type: categorical
+    description: Recipient's email address (PII)
+    aliases: [recipient_email, beneficiary_email, receiver_email]
+
+  # ── Address (prefixed) ─────────────────────────────────────────────
+  recipient_street_address:
+    type: categorical
+    description: Recipient's street address (PII)
+    aliases: [recipient_address, beneficiary_address, receiver_address]
+
+  recipient_state_province:
+    type: categorical
+    description: Recipient's state or province
+    aliases: []
+
+  recipient_locality:
+    type: categorical
+    description: Recipient's city or locality
+    aliases: []
+
+  # ── Geography (prefixed: same column name as transactions table) ──
+  recipient_destination_country_code:
+    type: categorical
+    description: Recipient's country — use full country name (e.g. "Nepal", "Nigeria")
+    aliases: [recipient_nationality_code, recipiemt_nationality_code, recipient_nationality, recipient_country]
+
+  recipient_postcode:
+    type: categorical
+    description: Recipient's postal code
+    aliases: []
+
+  destination_country:
+    type: categorical
+    description: Full name of the recipient's destination country (e.g. "Nepal")
+    aliases: []
+
+  # ── Transfer purpose (prefixed) ────────────────────────────────────
+  recipient_transfer_purpose:
+    type: categorical
+    description: Stated purpose for transfers to this recipient (e.g. gift, family_support, education, self_transfer, medical)
+    aliases: []
+
+  # ── Bank details ────────────────────────────────────────────────────
+  financial_institution:
+    type: categorical
+    description: Recipient's bank or financial institution
+    aliases: [bank_name, bank, recipient_bank]
+
+  branch_code:
+    type: categorical
+    description: Recipient's bank branch code
+    aliases: []
+
+  account_number:
+    type: categorical
+    description: Recipient's bank account number
+    aliases: []
+
+  branch_name:
+    type: categorical
+    description: Recipient's bank branch name/identifier
+    aliases: []
+
+  iban_number:
+    type: categorical
+    description: Recipient's IBAN
+    aliases: [iban]
+
+  swift_bic_code:
+    type: categorical
+    description: SWIFT/BIC code of the recipient's bank
+    aliases: [swift, bic]
+
+  # ── Relationship ────────────────────────────────────────────────────
+  known_to_sender:
+    type: categorical
+    description: Whether the recipient is personally known to the sender (True/False)
+    allowed_values: [True, False]
+    aliases: [is_related_to_sender, related_party, related_to_sender]
+
+  # ── Timestamps ────────────────────────────────────────────────────
+  profile_created_at:
+    type: datetime
+    description: Timestamp when the recipient profile was created
+    aliases: []
+
+
+# ── Supported aggregations ────────────────────────────────────────────────────
+# These are the ONLY aggregation types the engine can compute.
+# The LLM must use exactly these names.
+
+aggregations:
+  sum:
+    applies_to: numeric
+    description: Total of a numeric attribute across all (or filtered) transactions
+
+  count:
+    applies_to: any
+    description: Number of transactions in the sequence (or matching a filter if filter fields are set)
+
+  average:
+    applies_to: numeric
+    description: Mean value of a numeric attribute across all (or filtered) transactions
+
+  max:
+    applies_to: numeric
+    description: Maximum value of a numeric attribute across all (or filtered) transactions
+
+  percentage_of_total:
+    applies_to: numeric
+    description: >
+      Sum of a numeric attribute for the filtered subset divided by the total for all transactions.
+      Requires at least one FilterClause in the filters list to define the subset.
+
+  ratio:
+    applies_to: numeric
+    description: >
+      Tier 1 (Pattern A) — subset ÷ complement within the same window.
+      Numerator = transactions matching the filters list.
+      Denominator = all other transactions in the same window.
+      Set filters and window. Leave derived_attributes null.
+      Example: Iran sends / non-Iran sends in last 30 days.
+      For comparing two SEPARATELY-WINDOWED quantities (e.g. last 7d vs prior 30d),
+      use a Tier 2 derived condition instead (see derived_expressions below).
+
+  distinct_count:
+    applies_to: categorical
+    description: Number of unique values of a categorical attribute across the sequence
+
+  shared_distinct_count:
+    applies_to: categorical
+    description: >
+      Count of distinct values of `attribute` (e.g. customer_id) that share at least one value
+      of any link_attribute (e.g. email_address, contact_number) with at least one other distinct value.
+      Requires link_attribute to be set on the condition.
+      Use with group_by to scope per recipient/entity.
+      Example: count of senders who share email or phone per recipient.
+
+  days_since_first:
+    applies_to: datetime
+    description: >
+      Number of days between the earliest and latest transaction date in the sequence
+      (or earliest matching transaction if filters are set).
+      Use on initiated_at to measure account tenure / activity span.
+      With filters: (latest date across all txns) - (earliest date among filtered txns).
+      Examples: days_since_first(initiated_at) = account age in days.
+      days_since_first(initiated_at, filters: [{destination_country_code in [Iran]}]) = days since first Iran transaction.
+
+  age_years:
+    applies_to: datetime
+    description: >
+      User's age in whole years at the time of the latest transaction in the sequence.
+      Always use on birthdate (never on initiated_at).
+      Computed as floor((latest_txn_date - birthdate) / 365).
+      Example: age_years(birthdate) > 65 — user is older than 65 at transaction time.
+      Use this when the rule references the user's actual age (e.g. "elderly customer", "under 18").
+      Do NOT use days_since_first for age — that measures transaction history span, not user age.
+
+# ── Derived expressions (Tier 2 conditions) ──────────────────────────────────
+# Used when a condition compares two SEPARATELY-WINDOWED aggregations.
+# Define derived_attributes (list of named DerivedAttr, each with its own
+# aggregation, attribute, window, filter) and derived_expression to combine them.
+# The engine uses non-overlapping semantics for "ratio":
+#   DA[0] = numerator  = [latest - DA[0].window, latest]
+#   DA[1] = denominator = [latest - DA[0].window - DA[1].window, latest - DA[0].window)
+
+derived_expressions:
+  ratio:
+    description: >
+      DA[0] / DA[1] using non-overlapping windows.
+      DA[0] = recent period (numerator), DA[1] = prior period (denominator).
+      Example: count(Iran txns last 7d) / count(Iran txns prior 30d) > 2.0
+      Timeline must span DA[0].window + DA[1].window days total.
+  difference:
+    description: >
+      DA[0] - DA[1] using independent windows (both measured from latest).
+      Example: sum(source_amount last 7d) - sum(source_amount last 30d) > 5000.
